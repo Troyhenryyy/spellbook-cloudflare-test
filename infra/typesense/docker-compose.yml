@@ -1,0 +1,18 @@
+services:
+  typesense:
+    image: typesense/typesense:0.25.2
+    container_name: typesense
+    command: >
+      typesense-server
+      --api-key=${TYPESENSE_API_KEY}
+      --data-dir=/data
+      --api-address=0.0.0.0
+      --api-port=8108
+    ports:
+      - "8108:8108"
+    volumes:
+      - ./data:/data
+
+    env_file:
+      - .env
+    restart: unless-stopped
