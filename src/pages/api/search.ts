@@ -12,7 +12,7 @@ export async function GET({ request, locals }: { request: Request, locals: any }
   const runtimeEnv = locals.runtime?.env || {};
   
   const HOST = runtimeEnv.PUBLIC_TYPESENSE_HOST || import.meta.env.PUBLIC_TYPESENSE_HOST || '5.223.67.150';
-  const PORT = runtimeEnv.PUBLIC_TYPESENSE_PORT || import.meta.env.PUBLIC_TYPESENSE_PORT || '443';
+  const PORT = runtimeEnv.PUBLIC_TYPESENSE_PORT || import.meta.env.PUBLIC_TYPESENSE_PORT || '80';
   const PROTOCOL = runtimeEnv.PUBLIC_TYPESENSE_PROTOCOL || import.meta.env.PUBLIC_TYPESENSE_PROTOCOL || 'http';
   const API_KEY = runtimeEnv.TYPESENSE_API_KEY || import.meta.env.TYPESENSE_API_KEY || '';
 
