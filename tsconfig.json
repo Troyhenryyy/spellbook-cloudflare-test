@@ -1,14 +1,11 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": [
-    ".astro/types.d.ts",
-    "**/*"
-  ],
-  "exclude": [
-    "dist"
-  ],
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "preact"
+    "jsxImportSource": "preact",
+    // ADD THESE LINES TO FIX THE ERROR:
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["astro/client"] 
   }
 }
