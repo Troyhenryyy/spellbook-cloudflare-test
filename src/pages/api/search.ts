@@ -1,71 +1,73 @@
-import Typesense from 'typesense';
-
-// CRITICAL: Run as a server function (Worker), not static HTML
 export const prerender = false;
 
-
-const client = new Typesense.Client({
-  nodes: [{
-    host: import.meta.env.PUBLIC_TYPESENSE_HOST || 'localhost',
-    port: import.meta.env.PUBLIC_TYPESENSE_PORT || '8108',
-    protocol: import.meta.env.PUBLIC_TYPESENSE_PROTOCOL || 'http',
-  }],
-
-  apiKey: (import.meta.env.TYPESENSE_API_KEY || '').trim(),
-  connectionTimeoutSeconds: 2
-});
-
-
-export async function GET({ request }: { request: Request }) {
+export async function GET({ request, locals }: { request: Request, locals: any }) {
   const url = new URL(request.url);
   const query = url.searchParams.get('q');
+  
+  /**
+   * SENIOR DEV TIP: Cloudflare Worker Environment Access
+   * On Cloudflare, variables are sometimes on 'import.meta.env' 
+   * and sometimes on 'locals.runtime.env'. We check both.
+   */
+  const runtimeEnv = locals.runtime?.env || {};
+  
+  const HOST = runtimeEnv.PUBLIC_TYPESENSE_HOST || import.meta.env.PUBLIC_TYPESENSE_HOST || 'localhost';
+  const PORT = runtimeEnv.PUBLIC_TYPESENSE_PORT || import.meta.env.PUBLIC_TYPESENSE_PORT || '8108';
+  const PROTOCOL = runtimeEnv.PUBLIC_TYPESENSE_PROTOCOL || import.meta.env.PUBLIC_TYPESENSE_PROTOCOL || 'http';
+  const API_KEY = runtimeEnv.TYPESENSE_API_KEY || import.meta.env.TYPESENSE_API_KEY || '';
 
-
-  const level = url.searchParams.get('level');
-  const school = url.searchParams.get('school');
-  const dndClass = url.searchParams.get('class');
-
-
-  if ((!query || query.length < 2) && !level && !school && !dndClass) {
+  // 1. Guard Clause: Validation
+  if (!query || query.length < 2) {
     return new Response(JSON.stringify({ hits: [] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' }
     });
   }
 
-
-  const filterConditions = [];
-  if (level) filterConditions.push(`level:=${level}`);
-  if (school) filterConditions.push(`school:=${school}`);
-  if (dndClass) filterConditions.push(`classes:=${dndClass}`);
-
-  const filterString = filterConditions.join(' && ');
+  // 2. Build the Search URL
+  const typesenseUrl = `${PROTOCOL}://${HOST}:${PORT}/collections/spells/documents/search?` + new URLSearchParams({
+    q: query,
+    query_by: 'name',
+    per_page: '250',
+    infix: 'always'
+  });
 
   try {
- 
-    const searchResults = await client.collections('spells').documents().search({
-      q: query || '*', 
-      query_by: 'name',
-      per_page: 250,   
-      filter_by: filterString,
-      infix: 'always', 
+    // 3. Native Fetch (The most reliable way on Cloudflare Workers)
+    const response = await fetch(typesenseUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-TYPESENSE-API-KEY': API_KEY.trim()
+      }
     });
 
-    return new Response(JSON.stringify(searchResults), {
+    if (!response.ok) {
+      // If Typesense rejects us, we want to know why (401? 404?)
+      const errorText = await response.text();
+      throw new Error(`Typesense Error (${response.status}): ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    return new Response(JSON.stringify(data), {
       status: 200,
       headers: { 
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=3600' 
+        'Cache-Control': 'public, max-age=3600'
       }
     });
 
   } catch (error: any) {
-    console.error("❌ Search Error:", error);
-    
+    // This will now show up in your Cloudflare Log Stream!
+    console.error("❌ API CRASH:", error.message);
+
     return new Response(JSON.stringify({ 
-      error: 'Search service unavailable',
-      details: error.message 
-    }), {
+      error: 'Search Failed',
+      reason: error.message,
+      // Helps us debug if the key was missing
+      debug: { keyProvided: !!API_KEY, host: HOST }
+    }), { 
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });
